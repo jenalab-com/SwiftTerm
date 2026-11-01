@@ -2922,7 +2922,12 @@ open class TerminalView: NSView, NSUserInterfaceValidations, TerminalDelegate {
         // (typically `NSColor.windowBackgroundColor` when the host has called
         // `configureNativeColors()`) when the cell carries no color of its own.
         let caretColors = markedTextColorsAtCaret()
-        overlay.overlayBackgroundColor = caretColors.background
+        // The overlay sits on top of the caret, so while composing (e.g. Korean
+        // Hangul) the caret used to vanish. Draw the composing text inside a
+        // caret-colored block instead, like Terminal.app, so the insertion point
+        // stays visible. Dictation (no focus) keeps the cell background.
+        let showsCaret = hasFocus && !caretView.isHidden
+        overlay.overlayBackgroundColor = showsCaret ? caretView.caretColor : caretColors.background
 
         // Match terminal line metrics so wrapped lines line up with terminal rows.
         let lineHeight = cellDimension.height
@@ -2945,9 +2950,11 @@ open class TerminalView: NSView, NSUserInterfaceValidations, TerminalDelegate {
         let fullRange = NSRange(location: 0, length: display.length)
         display.addAttributes([
             .font: font,
-            .foregroundColor: caretColors.foreground,
+            .foregroundColor: showsCaret ? (caretView.caretTextColor ?? caretColors.foreground) : caretColors.foreground,
             .paragraphStyle: para,
             .kern: kern,
+            // Marks the text as not yet committed.
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
         ], range: fullRange)
         overlay.textStorage?.setAttributedString(display)
 
