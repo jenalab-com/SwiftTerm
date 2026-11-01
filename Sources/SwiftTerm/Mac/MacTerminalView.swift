@@ -2928,6 +2928,9 @@ open class TerminalView: NSView, NSUserInterfaceValidations, TerminalDelegate {
         // stays visible. Dictation (no focus) keeps the cell background.
         let showsCaret = hasFocus && !caretView.isHidden
         overlay.overlayBackgroundColor = showsCaret ? caretView.caretColor : caretColors.background
+        // The cell-colored background is meant to span the row; a caret block must
+        // only cover the composing glyphs, not the rest of the line.
+        overlay.fillsTextOnly = showsCaret
 
         // Match terminal line metrics so wrapped lines line up with terminal rows.
         let lineHeight = cellDimension.height
@@ -5306,13 +5309,19 @@ final class DictationOverlayTextView: NSTextView {
         super.draw(dirtyRect)
     }
 
+    /// Fill only the glyphs' used rect instead of the whole line fragment.
+    var fillsTextOnly = false {
+        didSet { needsDisplay = true }
+    }
+
     private func drawPerFragmentBackground(in dirtyRect: NSRect) {
         guard let layoutManager, let container = textContainer else { return }
         overlayBackgroundColor.setFill()
         let glyphRange = layoutManager.glyphRange(for: container)
         let origin = textContainerOrigin
-        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { fragmentRect, _, _, _, _ in
-            let r = fragmentRect.offsetBy(dx: origin.x, dy: origin.y)
+        let textOnly = fillsTextOnly
+        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { fragmentRect, usedRect, _, _, _ in
+            let r = (textOnly ? usedRect : fragmentRect).offsetBy(dx: origin.x, dy: origin.y)
             if r.intersects(dirtyRect) {
                 r.fill()
             }
